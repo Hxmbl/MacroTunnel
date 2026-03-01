@@ -21,7 +21,7 @@ type Message struct {
 func main() {
 	tcpInfo, err := discoverMac()
 	if err != nil {
-		fmt.Println("Discovery failed:", err)
+		fmt.Println("Discovery failed:", err) // What we get after 2 seconds of waiting for a response, fix this later.
 		return
 	}
 
