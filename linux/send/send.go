@@ -55,22 +55,40 @@ func main() {
 
 func discoverMac() (*DiscoveryResponse, error) {
 	broadcastAddr := "255.255.255.255:9999"
-	udpAddr, _ := net.ResolveUDPAddr("udp4", broadcastAddr)
-	conn, _ := net.DialUDP("udp4", nil, udpAddr)
+	remoteAddr, err := net.ResolveUDPAddr("udp4", broadcastAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Bind to random local port (but SAME socket for send + receive)
+	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.ListenUDP("udp4", localAddr)
+	if err != nil {
+		return nil, err
+	}
 	defer conn.Close()
 
-	// Send discovery ping
-	conn.Write([]byte("MACRO_DISCOVERY"))
-	fmt.Println("Discovery ping sent")
+	// Enable broadcast
+	err = conn.SetWriteBuffer(1024)
+	if err != nil {
+		return nil, err
+	}
 
-	// Listen for response
-	listenAddr, _ := net.ResolveUDPAddr("udp4", ":0")
-	listenConn, _ := net.ListenUDP("udp4", listenAddr)
-	defer listenConn.Close()
+	_, err = conn.WriteToUDP([]byte("MACRO_DISCOVERY"), remoteAddr)
+	if err != nil {
+		return nil, err
+	}
 
-	listenConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	fmt.Println("Discovery ping sent from", conn.LocalAddr())
+
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
 	buf := make([]byte, 1024)
-	n, _, err := listenConn.ReadFromUDP(buf)
+	n, _, err := conn.ReadFromUDP(buf)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +98,7 @@ func discoverMac() (*DiscoveryResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	fmt.Println("Discovered Mac:", resp)
 	return &resp, nil
 }
