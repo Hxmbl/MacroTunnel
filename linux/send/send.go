@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -54,13 +55,58 @@ func main() {
 }
 
 func discoverMac() (*DiscoveryResponse, error) {
-	broadcastAddr := "192.168.1.255:9999"
+	// Step 1: List local subnets
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	subnets := []string{}
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				ipParts := strings.Split(ipnet.IP.String(), ".")
+				if len(ipParts) == 4 {
+					subnet := fmt.Sprintf("%s.%s.%s", ipParts[0], ipParts[1], ipParts[2])
+					subnets = append(subnets, subnet)
+				}
+			}
+		}
+	}
+
+	// Remove duplicates
+	seen := map[string]bool{}
+	uniqueSubnets := []string{}
+	for _, s := range subnets {
+		if !seen[s] {
+			seen[s] = true
+			uniqueSubnets = append(uniqueSubnets, s)
+		}
+	}
+
+	// Step 2: Ask user to pick subnet
+	fmt.Println("Found local subnet candidates:")
+	for i, s := range uniqueSubnets {
+		fmt.Printf("%d) %s\n", i+1, s)
+	}
+
+	fmt.Print("Select the subnet your Mac is on [1-", len(uniqueSubnets), "]: ")
+	var choice int
+	fmt.Scan(&choice)
+	if choice < 1 || choice > len(uniqueSubnets) {
+		return nil, fmt.Errorf("invalid choice")
+	}
+
+	selectedSubnet := uniqueSubnets[choice-1]
+	broadcastAddr := fmt.Sprintf("%s.255:9999", selectedSubnet)
+
+	// Step 3: Send discovery ping
 	remoteAddr, err := net.ResolveUDPAddr("udp4", broadcastAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Bind to random local port (but SAME socket for send + receive)
 	localAddr, err := net.ResolveUDPAddr("udp4", ":0")
 	if err != nil {
 		return nil, err
@@ -71,12 +117,6 @@ func discoverMac() (*DiscoveryResponse, error) {
 		return nil, err
 	}
 	defer conn.Close()
-
-	// Enable broadcast
-	err = conn.SetWriteBuffer(1024)
-	if err != nil {
-		return nil, err
-	}
 
 	_, err = conn.WriteToUDP([]byte("MACRO_DISCOVERY"), remoteAddr)
 	if err != nil {

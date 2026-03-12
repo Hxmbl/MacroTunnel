@@ -82,25 +82,35 @@ func startUDPDiscoveryResponder() {
 
     listener.newConnectionHandler = { connection in
         connection.start(queue: .global())
-        connection.receiveMessage { data, _, _, _ in
-            if let data = data,
-               let text = String(data: data, encoding: .utf8),
-               text == "MACRO_DISCOVERY" {
-
-                print("Discovery ping received")
-                // Send back JSON with local IP and TCP port
-                let localIP = getLocalIP() ?? "127.0.0.1"
-                let response = ["ip": localIP, "port": 9090]
-                if let jsonData = try? JSONSerialization.data(withJSONObject: response) {
-                    connection.send(content: jsonData, completion: .contentProcessed({ _ in
-                        print("Sent discovery response to sender")
-                    }))
-                }
-            }
-        }
+        handleUDPConnection(connection)   // 🔥 START the loop
     }
 
     listener.start(queue: .main)
+}
+
+@available(macOS 10.14, *)
+func handleUDPConnection(_ connection: NWConnection) {
+    connection.receiveMessage { data, _, _, error in
+        if let data = data,
+           let text = String(data: data, encoding: .utf8),
+           text == "MACRO_DISCOVERY" {
+
+            print("Discovery ping received")
+
+            let localIP = getLocalIP() ?? "127.0.0.1"
+            let response = ["ip": localIP, "port": 9090]
+
+            if let jsonData = try? JSONSerialization.data(withJSONObject: response) {
+                connection.send(content: jsonData, completion: .contentProcessed { _ in
+                    print("Sent discovery response to sender")
+                })
+            }
+        }
+
+        if error == nil {
+            handleUDPConnection(connection)   // 🔁 keep listening
+        }
+    }
 }
 
 // ---------------- Helper: Get local IP ----------------
