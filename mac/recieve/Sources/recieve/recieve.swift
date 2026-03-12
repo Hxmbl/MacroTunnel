@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Quartz
 
 @available(macOS 10.14, *)
 func main() {
@@ -46,8 +47,11 @@ func receive(on connection: NWConnection) {
                         if let obj = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
                             print("Parsed JSON:", obj)
                             if let device = obj["device_id"] as? String,
-                               let key = obj["key_id"] as? Int {
+                                let key = obj["key_id"] as? Int {
                                 print("Key pressed:", key, "from device:", device)
+                                    DispatchQueue.main.async {            // Ensure events run on main queue
+                                    keyMap[key]?()                    // 🔑 execute mapped action
+                                  }
                             } else {
                                 print("JSON missing expected keys, ignoring:", obj)
                             }
@@ -136,5 +140,46 @@ func getLocalIP() -> String? {
     }
     return address
 }
+
+
+// ------------- Make the keys do something --------------
+let keyMap: [Int: () -> Void] = [
+    1: { launchApp("Terminal") },
+    2: { launchApp("Safari") },
+    3: { launchApp("Raycast") },
+    4: { typeText("hi") }
+]
+
+// Helpers
+func launchApp(_ name: String) {
+    let task = Process()
+    task.launchPath = "/usr/bin/open"
+    task.arguments = ["-a", name]
+    try? task.run()
+}
+
+func typeText(_ text: String) {
+    let source = CGEventSource(stateID: .combinedSessionState)
+    for c in text {
+        if let key = keyCode(for: c) {
+            let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
+            let up   = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
+            down?.post(tap: .cghidEventTap)
+            up?.post(tap: .cghidEventTap)
+        }
+    }
+}
+
+// Map characters to macOS key codes (simplified)
+func keyCode(for char: Character) -> CGKeyCode? {
+    switch char.lowercased() {
+    case "a": return 0x00
+    case "b": return 0x0B
+    case "h": return 0x04
+    case "i": return 0x22
+    default: return nil
+    }
+}
+
 
 main()
