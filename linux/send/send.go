@@ -54,7 +54,7 @@ func main() {
 }
 
 func discoverMac() (*DiscoveryResponse, error) {
-	broadcastAddr := "192.168.0.255:9999"
+	broadcastAddr := "192.168.1.255:9999"
 	remoteAddr, err := net.ResolveUDPAddr("udp4", broadcastAddr)
 	if err != nil {
 		return nil, err

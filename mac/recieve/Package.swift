@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "recieve",
+    name: "MacroTunnel_recieve",
     platforms: [
         .macOS(.v10_14)
     ],
