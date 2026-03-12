@@ -21,7 +21,7 @@ type Message struct {
 
 func main() {
 	tcpInfo, err := discoverMac()
-	if err != nil {
+	if err != nil || tcpInfo == nil {
 		fmt.Println("Discovery failed:", err)
 		return
 	}
